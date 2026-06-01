@@ -1,2 +1,18 @@
-# AI-ticket-system-frontend-backend-
-AI-powered full-stack ticket dashboard with Gmail automation, FastAPI backend, PostgreSQL/Supabase database, React frontend, Tailwind UI, live analytics, search and filtering.
+AI Ticket Dashboard
+
+Features:
+- AI email ticket ingestion
+- PostgreSQL storage
+- FastAPI backend
+- React frontend
+- Tailwind dashboard
+- Live analytics
+- Search + filtering
+
+Tech Stack:
+- React
+- TailwindCSS
+- FastAPI
+- PostgreSQL
+- Supabase
+- n8n
