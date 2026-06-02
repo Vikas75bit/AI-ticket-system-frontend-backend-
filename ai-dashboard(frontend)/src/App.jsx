@@ -31,7 +31,7 @@ const [darkMode, setDarkMode] = useState(false);
 
       setLoading(true);
 
-      const response = await fetch("import.meta.env.https://ai-ticket-backend-s98g.onrender.com/");
+      const response = await fetch("import.meta.env.import.meta.env.VITE_API_URL");
 
       if (!response.ok) {
         throw new Error("Failed to fetch analytics");
@@ -57,7 +57,7 @@ const [darkMode, setDarkMode] = useState(false);
 
   const fetchTickets = () => {
     axios
-      .get(`${import.meta.env.https://ai-ticket-backend-s98g.onrender.com/}/tickets`)
+      .get(`${import.meta.env.VITE_API_URL}/tickets`)
       .then((response) => {
         setTickets(Array.isArray(response.data) ? response.data : []);
       })
