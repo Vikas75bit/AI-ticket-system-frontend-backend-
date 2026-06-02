@@ -1,0 +1,13 @@
+[COMPANY OPERATIONAL POLICY MANUAL]
+
+DEPARTMENT ROUTING RULES:
+1. Technical Support: Handles server crashes, bug reports, database timeouts, and API authentication errors.
+2. Billing & Accounts: Handles payment failures, invoice requests, subscription cancellations, and refund claims.
+3. Sales & Partnerships: Handles bulk licensing queries, enterprise custom quotes, and campus hiring requests.
+
+REFUND POLICIES:
+- Standard software licenses have a strict 14-day refund window from the date of purchase.
+- B.Tech specialized training modules are non-refundable once the course keys are activated.
+
+CRITICAL ESCALATION TRIGGER:
+- Any ticket mentioning data leaks, security breaches, or unauthorized root access must be flagged as High Urgency immediately and routed to Technical Support, regardless of sentiment.
