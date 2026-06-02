@@ -31,7 +31,7 @@ const [darkMode, setDarkMode] = useState(false);
 
       setLoading(true);
 
-      const response = await fetch("import.meta.env.import.meta.env.VITE_API_URL");
+      const response = await fetch("import.meta.env.VITE_API_URL");
 
       if (!response.ok) {
         throw new Error("Failed to fetch analytics");
