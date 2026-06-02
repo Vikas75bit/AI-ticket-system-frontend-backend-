@@ -7,8 +7,7 @@ from dotenv import load_dotenv
 # Ensure environment variables are loaded
 load_dotenv()
 
-# We are fetching your secret Supabase pooler URL directly from your secure .env file!
-DATABASE_URL = os.getenv("SUPABASE_DB_URL")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Create the core engine that manages the network sockets
 engine = create_engine(DATABASE_URL)
