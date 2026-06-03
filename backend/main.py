@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from worker import celery_app
 
 from sqlalchemy.orm import Session
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from database import SessionLocal
 import models
 
@@ -24,9 +24,9 @@ load_dotenv(BASE_DIR / ".env")
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "https://ai-ticket-system-frontend-backend.vercel.app"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],  # 👈 This asterisk covers GET, POST, PATCH, and DELETE safely!
     allow_headers=["*"],
 )
 
@@ -68,6 +68,9 @@ class Ticket(BaseModel):
     sender: str
     subject: str
     message: str
+
+class OverrideRequest(BaseModel):
+    manual_action: str
 
 # 4. Define Agentic Execution Tools (The Python "Hands")
 def lookup_refund_eligibility(user_email: str) -> str:
@@ -189,4 +192,30 @@ def get_analytics(db: Session = Depends(get_db)):
         "total_tickets": total_count,
         "high_priority_tickets": high_priority_count,
         "system_status": "Healthy" if total_count > 0 else "Empty"
+    }
+
+@app.patch("/tickets/{ticket_id}/override")
+def override_ticket_action(ticket_id: int, payload: OverrideRequest, db: Session = Depends(get_db)):
+    """
+    Locates an existing ticket row in Supabase by its unique ID
+    and overwrites the autonomous AI text with a compliance-stamped human override directive.
+    """
+    # Query the PostgreSQL table for that specific record index
+    db_ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    
+    # If the manager passes a bunk ID number, exit out safely
+    if not db_ticket:
+        raise HTTPException(status_code=404, detail="Target ticket record not found in system architecture.")
+    
+    # Apply the human text alongside a highly visible compliance marker
+    db_ticket.action_taken = f"[MANUAL OVERRIDE BY MANAGER] {payload.manual_action}"
+    
+    # Commit the transaction to save it persistently inside Supabase cloud
+    db.commit()
+    db.refresh(db_ticket)
+    
+    return {
+        "status": "Success",
+        "message": f"Autonomous action for ticket #{ticket_id} has been permanently overridden.",
+        "updated_action": db_ticket.action_taken
     }
