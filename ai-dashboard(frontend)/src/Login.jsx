@@ -6,14 +6,26 @@ function Login() {
   const [password, setPassword] = useState("");
 
   const handleSignup = async () => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+  const {
+  data,
+  error,
+  } = await supabase.auth.signUp({
+  email,
+  password,
+  });
 
     if (error) {
       alert(error.message);
     } else {
+      await supabase
+  .from("user_roles")
+  .insert([
+    {
+      id: data.user.id,
+      email: email,
+      role: "user",
+    },
+  ]);
       alert("Signup successful!");
     }
   };
