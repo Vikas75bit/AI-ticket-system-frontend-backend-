@@ -28,6 +28,7 @@ function App() {
   // --- DAY 10 HUMAN-IN-THE-LOOP STATE CONTROL ---
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [overrideText, setOverrideText] = useState("");
+  const [resolutionNote, setResolutionNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modularize fetch commands so we can trigger them again instantly after a database patch mutation
@@ -92,6 +93,55 @@ function App() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  
+  // --- UPDATE STATUS FUNCTION ---
+const updateStatus = async (ticketId, newStatus) => {
+
+  const { data, error } = await supabase
+    .from("tickets")
+    .update({
+      status: newStatus,
+    })
+    .eq("id", ticketId);
+
+  console.log("Ticket ID:", ticketId);
+  console.log("New Status:", newStatus);
+
+  console.log("Update Data:", data);
+  console.log("Update Error:", error);
+
+  fetchTickets();
+};
+
+const updateResolutionNote = async (
+  ticketId,
+  note
+) => {
+
+  const { error } = await supabase
+    .from("tickets")
+    .update({
+      resolution_note: note,
+    })
+    .eq("id", ticketId);
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+    return;
+  }
+
+  fetchTickets();
+
+  alert("Resolution note saved!");
+};
+
+  const openOverrideModal = (ticket) => {
+    setSelectedTicket(ticket);
+    setOverrideText("");
+    setResolutionNote(ticket.resolution_note || "");
   };
 
   // --- LOGOUT HANDLER ---
@@ -261,6 +311,8 @@ function App() {
                     <th className="p-3">Department</th>
                     <th className="p-3">Sentiment</th>
                     <th className="p-3">Action Records</th>
+                    <th className="p-3">Resolution Note</th>
+                    <th className="p-3">Status</th>
                     <th className="p-3 text-center">Intervene</th>
                   </tr>
                 </thead>
@@ -285,9 +337,48 @@ function App() {
                           {ticket.action_taken || "Processing..."}
                         </span>
                       </td>
+                      <td className="p-3 max-w-sm">
+                        <div className={`text-xs leading-5 ${
+                          ticket.resolution_note ? "text-green-500" : "text-slate-400"
+                        }`}>
+                          {ticket.resolution_note || "No resolution yet"}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div
+                          className={`mb-2 text-xs font-bold ${
+                            ticket.status === "Open"
+                              ? "text-red-400"
+                              : ticket.status === "In Progress"
+                              ? "text-yellow-400"
+                              : ticket.status === "Resolved"
+                              ? "text-green-400"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {ticket.status}
+                        </div>
+                        <select
+                          value={ticket.status || "Open"}
+                          onChange={(e) =>
+                          updateStatus(
+                          ticket.id,
+                          e.target.value
+                            )
+                          }
+                          className={`border rounded-lg px-2 py-1 text-xs font-semibold ${
+                            darkMode ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300"
+                          }`}
+                        >
+                      <option value="Open">Open</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Resolved">Resolved</option>
+                          <option value="Closed">Closed</option>
+                        </select>
+                      </td>
                       <td className="p-3 text-center">
                         <button
-                          onClick={() => { setSelectedTicket(ticket); setOverrideText(""); }}
+                          onClick={() => openOverrideModal(ticket)}
                           className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg transition transform hover:scale-105"
                         >
                           Override
@@ -324,6 +415,12 @@ function App() {
                 <label className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1">Active AI Action Statement</label>
                 <div className="text-xs font-mono p-3 rounded-lg bg-slate-900/30 border border-slate-700/30 text-slate-400">{selectedTicket.action_taken}</div>
               </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1">Current Resolution Note</label>
+                <div className="text-xs p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-green-400">
+                  {selectedTicket.resolution_note || "No resolution note saved yet."}
+                </div>
+              </div>
             </div>
 
             <form onSubmit={handleApplyOverride}>
@@ -340,6 +437,18 @@ function App() {
                   }`}
                 />
               </div>
+              <div className="mb-6">
+                <label className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1.5">Resolution Note</label>
+                <textarea
+                  rows={3}
+                  value={resolutionNote}
+                  onChange={(e) => setResolutionNote(e.target.value)}
+                  placeholder="Write the customer-facing resolution note..."
+                  className={`w-full px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition ${
+                    darkMode ? "bg-slate-900 border-slate-700 text-white" : "bg-white border text-black"
+                  }`}
+                />
+              </div>
 
               <div className="flex justify-end gap-3">
                 <button
@@ -348,6 +457,18 @@ function App() {
                   className="px-4 py-2 rounded-xl bg-slate-600 hover:bg-slate-500 font-semibold text-sm text-white transition"
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateResolutionNote(
+                      selectedTicket.id,
+                      resolutionNote
+                    )
+                  }
+                  className="bg-green-600 text-white px-4 py-2 rounded"
+                >
+                  Save Resolution
                 </button>
                 <button
                   type="submit"
