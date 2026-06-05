@@ -8,6 +8,7 @@ import chromadb
 from dotenv import load_dotenv
 from worker import celery_app
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException
 from database import SessionLocal
@@ -68,6 +69,11 @@ class Ticket(BaseModel):
     sender: str
     subject: str
     message: str
+
+class TicketCreate(BaseModel):
+    sender: str
+    subject: str
+    summary: str
 
 class OverrideRequest(BaseModel):
     manual_action: str
@@ -163,7 +169,38 @@ def analyze_ticket_async(ticket: Ticket):
 @app.get("/tickets")
 def get_tickets(db: Session = Depends(get_db)):
     """Fetches every single support ticket record resting inside the cloud database."""
-    tickets = db.query(models.Ticket).all()
+    tickets = db.query(models.Ticket).order_by(models.Ticket.created_at.desc()).all()
+    return tickets
+
+@app.post("/tickets")
+def create_ticket(ticket: TicketCreate, db: Session = Depends(get_db)):
+    """Creates a customer-submitted ticket synchronously so it is visible after login refreshes."""
+    normalized_sender = ticket.sender.strip().lower()
+    db_ticket = models.Ticket(
+        sender=normalized_sender,
+        subject=ticket.subject.strip(),
+        summary=ticket.summary.strip(),
+        urgency="Pending",
+        department="Support",
+        sentiment="Pending",
+        action_taken="Ticket submitted. Awaiting review.",
+    )
+
+    db.add(db_ticket)
+    db.commit()
+    db.refresh(db_ticket)
+    return db_ticket
+
+@app.get("/tickets/user/{user_email}")
+def get_user_tickets(user_email: str, db: Session = Depends(get_db)):
+    """Fetches tickets submitted by a single user email."""
+    normalized_email = user_email.strip().lower()
+    tickets = (
+        db.query(models.Ticket)
+        .filter(func.lower(models.Ticket.sender) == normalized_email)
+        .order_by(models.Ticket.created_at.desc())
+        .all()
+    )
     return tickets
 
 
