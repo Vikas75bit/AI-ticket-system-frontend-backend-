@@ -23,9 +23,11 @@ class Ticket(Base):
 
     status = Column(String, default="Open")
 
-    action_taken = Column(Text)
-    
+    assigned_to = Column(String)
+
     resolution_note = Column(Text)
+
+    action_taken = Column(Text)
 
     created_at = Column(
         TIMESTAMP(timezone=True),
@@ -33,3 +35,13 @@ class Ticket(Base):
 
     
     )
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+
+    id = Column(String, primary_key=True, index=True)
+    email = Column(String)
+    role = Column(String)
+    subscription_tier = Column(String, default="free")
+    tickets_processed = Column(Integer, default=0)
