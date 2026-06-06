@@ -1,8 +1,8 @@
 import os
 import json
 from pathlib import Path
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, status
+from pydantic import AliasChoices, BaseModel, Field
 from groq import Groq
 import chromadb
 from dotenv import load_dotenv
@@ -73,7 +73,7 @@ class Ticket(BaseModel):
 class TicketCreate(BaseModel):
     sender: str
     subject: str
-    summary: str
+    body: str = Field(validation_alias=AliasChoices("body", "summary"))
 
 class OverrideRequest(BaseModel):
     manual_action: str
@@ -173,23 +173,49 @@ def get_tickets(db: Session = Depends(get_db)):
     return tickets
 
 @app.post("/tickets")
-def create_ticket(ticket: TicketCreate, db: Session = Depends(get_db)):
-    """Creates a customer-submitted ticket synchronously so it is visible after login refreshes."""
-    normalized_sender = ticket.sender.strip().lower()
-    db_ticket = models.Ticket(
-        sender=normalized_sender,
-        subject=ticket.subject.strip(),
-        summary=ticket.summary.strip(),
-        urgency="Pending",
-        department="Support",
-        sentiment="Pending",
-        action_taken="Ticket submitted. Awaiting review.",
-    )
+def ingest_customer_ticket(ticket_data: TicketCreate, db: Session = Depends(get_db)):
+    """
+    Ingests an inbound issue, checking the admin's usage quota
+    inside the 'user_roles' table BEFORE running expensive AI workflows.
+    """
+    # 1. Fetch the workspace admin account tracking row from user_roles
+    # (For testing, we grab the first admin profile in the workspace)
+    admin_quota = db.query(models.UserRole).filter(models.UserRole.role == "admin").first()
 
-    db.add(db_ticket)
+    if not admin_quota:
+        raise HTTPException(
+            status_code=500,
+            detail="System Configuration Error: No administrative workspace quota account found."
+        )
+
+    # 2. THE METRIC GUARDRAIL: Block the ticket if a Free Tier quota is breached
+    if admin_quota.subscription_tier == "free" and admin_quota.tickets_processed >= 10:
+        # Halt execution and return a clean 402 Payment Required status code
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Usage Quota Exceeded: This workspace has reached its free limit of 10 autonomous triages. Upgrade to Premium required."
+        )
+
+    # 3. Quota check passed! Write the new issue into your 'tickets' table
+    new_ticket = models.Ticket(
+        sender=ticket_data.sender,
+        subject=ticket_data.subject,
+        summary=ticket_data.body,
+        urgency="Processing...",
+        department="Triage Pending"
+    )
+    db.add(new_ticket)
+
+    # 4. COUNTER INCREMENT: Bump the tickets_processed counter inside user_roles by 1!
+    admin_quota.tickets_processed += 1
+
     db.commit()
-    db.refresh(db_ticket)
-    return db_ticket
+    db.refresh(new_ticket)
+
+    # 5. (Your existing background loops go here...)
+    # celery_worker.process_ai_triage.delay(new_ticket.id)
+
+    return {"status": "Success", "message": "Ticket processed and counter updated.", "ticket_id": new_ticket.id}
 
 @app.get("/tickets/user/{user_email}")
 def get_user_tickets(user_email: str, db: Session = Depends(get_db)):
