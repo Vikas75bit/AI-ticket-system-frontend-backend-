@@ -24,6 +24,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
+  const [ticketFilter, setTicketFilter] = useState("all");
 
   // --- DAY 10 HUMAN-IN-THE-LOOP STATE CONTROL ---
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -138,6 +139,26 @@ const updateResolutionNote = async (
   alert("Resolution note saved!");
 };
 
+const assignTicket = async (
+  ticketId,
+  assignedAgent
+) => {
+
+  const { error } = await supabase
+    .from("tickets")
+    .update({
+      assigned_to: assignedAgent,
+    })
+    .eq("id", ticketId);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  fetchTickets();
+};
+
   const openOverrideModal = (ticket) => {
     setSelectedTicket(ticket);
     setOverrideText("");
@@ -163,6 +184,31 @@ const updateResolutionNote = async (
 
     return matchesSearch && matchesUrgency;
   });
+
+  const displayedTickets = filteredTickets.filter(
+    (ticket) => {
+
+      if (ticketFilter === "mine") {
+        return ticket.assigned_to === "admin@gmail.com";
+      }
+
+      if (ticketFilter === "unassigned") {
+        return !ticket.assigned_to;
+      }
+
+      return true;
+    }
+  );
+
+  const assignedTickets =
+    tickets.filter(
+      (ticket) => ticket.assigned_to
+    ).length;
+
+  const unassignedTickets =
+    tickets.filter(
+      (ticket) => !ticket.assigned_to
+    ).length;
 
   const priorityData = [
     { name: "High", value: tickets.filter((ticket) => ticket.urgency === "High").length },
@@ -219,7 +265,7 @@ const updateResolutionNote = async (
       {analytics ? (
         <>
           {/* METRIC GRIDS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6">
             <div className={`p-6 rounded-2xl shadow-lg ${darkMode ? "bg-slate-800 text-white" : "bg-white"}`}>
               <h2 className="text-xl font-semibold text-slate-400 mb-2">Total Tickets</h2>
               <p className="text-4xl font-bold">{analytics.total_tickets}</p>
@@ -233,6 +279,16 @@ const updateResolutionNote = async (
             <div className={`p-6 rounded-2xl shadow-lg ${darkMode ? "bg-slate-800 text-white" : "bg-white"}`}>
               <h2 className="text-xl font-semibold text-slate-400 mb-2">System Status</h2>
               <p className="text-3xl font-bold text-green-600">{analytics.system_status}</p>
+            </div>
+
+            <div className="bg-blue-600 text-white p-6 rounded-2xl shadow-lg">
+              <h3 className="text-xl font-semibold text-blue-100 mb-2">Assigned Tickets</h3>
+              <p className="text-4xl font-bold">{assignedTickets}</p>
+            </div>
+
+            <div className="bg-amber-600 text-white p-6 rounded-2xl shadow-lg">
+              <h3 className="text-xl font-semibold text-amber-100 mb-2">Unassigned Tickets</h3>
+              <p className="text-4xl font-bold">{unassignedTickets}</p>
             </div>
           </div>
 
@@ -301,6 +357,47 @@ const updateResolutionNote = async (
               </select>
             </div>
 
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() => setTicketFilter("all")}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-150 ${
+                  ticketFilter === "all"
+                    ? "bg-blue-600 text-white shadow-md scale-105"
+                    : darkMode
+                    ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                }`}
+              >
+                All Tickets
+              </button>
+
+              <button
+                onClick={() => setTicketFilter("mine")}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-150 ${
+                  ticketFilter === "mine"
+                    ? "bg-green-600 text-white shadow-md scale-105"
+                    : darkMode
+                    ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                }`}
+              >
+                My Tickets
+              </button>
+
+              <button
+                onClick={() => setTicketFilter("unassigned")}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-150 ${
+                  ticketFilter === "unassigned"
+                    ? "bg-amber-600 text-white shadow-md scale-105"
+                    : darkMode
+                    ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                }`}
+              >
+                Unassigned
+              </button>
+            </div>
+
             <div className="overflow-x-auto mt-4">
               <table className="min-w-full text-left text-sm border-collapse">
                 <thead>
@@ -312,12 +409,13 @@ const updateResolutionNote = async (
                     <th className="p-3">Sentiment</th>
                     <th className="p-3">Action Records</th>
                     <th className="p-3">Resolution Note</th>
+                    <th className="p-3">Assigned To</th>
                     <th className="p-3">Status</th>
                     <th className="p-3 text-center">Intervene</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTickets.map((ticket) => (
+                  {displayedTickets.map((ticket) => (
                     <tr key={ticket.id} className="border-b border-slate-700/30 hover:bg-slate-500/10 transition-colors duration-150">
                       <td className="p-3 font-medium">{ticket.sender}</td>
                       <td className="p-3 max-w-xs truncate">{ticket.subject}</td>
@@ -343,6 +441,30 @@ const updateResolutionNote = async (
                         }`}>
                           {ticket.resolution_note || "No resolution yet"}
                         </div>
+                      </td>
+                      <td className="p-3">
+                        <select
+                          value={ticket.assigned_to || ""}
+                          onChange={(e) =>
+                            assignTicket(
+                              ticket.id,
+                              e.target.value
+                            )
+                          }
+                          className={`border rounded-lg px-2 py-1 text-xs ${
+                            darkMode
+                              ? "bg-slate-900 border-slate-700 text-white"
+                              : "bg-white border-slate-300"
+                          }`}
+                        >
+                          <option value="">
+                            Unassigned
+                          </option>
+
+                          <option value="admin@gmail.com">
+                            admin@gmail.com
+                          </option>
+                        </select>
                       </td>
                       <td className="p-3">
                         <div
@@ -485,5 +607,4 @@ const updateResolutionNote = async (
     </div>
   );
 }
-
 export default App;
