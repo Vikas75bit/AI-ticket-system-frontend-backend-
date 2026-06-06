@@ -202,6 +202,10 @@ function UserDashboard() {
                 Sender: {ticket.sender}
               </div>
 
+              <div className="mt-1 text-sm text-blue-600 font-medium">
+                Assigned Agent: {ticket.assigned_to || "Not Assigned Yet"}
+              </div>
+
               <div
                 className={`mt-2 font-semibold ${getStatusColor(
                   ticket.status
