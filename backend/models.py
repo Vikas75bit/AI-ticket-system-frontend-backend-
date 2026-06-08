@@ -37,6 +37,23 @@ class Ticket(Base):
     )
 
 
+class TicketComment(Base):
+    __tablename__ = "ticket_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    ticket_id = Column(Integer)
+
+    sender = Column(String)
+
+    message = Column(Text)
+
+    created_at = Column(
+        TIMESTAMP(timezone=True),
+        server_default=func.now()
+    )
+
+
 class UserRole(Base):
     __tablename__ = "user_roles"
 
