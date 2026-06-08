@@ -1,7 +1,7 @@
 import os
 import json
 from pathlib import Path
-from fastapi import FastAPI, status
+from fastapi import FastAPI, status, Depends, HTTPException
 from pydantic import AliasChoices, BaseModel, Field
 from groq import Groq
 import chromadb
@@ -10,17 +10,17 @@ from worker import celery_app
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from fastapi import Depends, HTTPException
-from database import SessionLocal
+from database import SessionLocal, engine
 import models
-
 from fastapi.middleware.cors import CORSMiddleware
+
+# Auto-create tables in database on startup
+models.Base.metadata.create_all(bind=engine)
 
 BASE_DIR = Path(__file__).resolve().parent
 
 # Load local .env configurations from this app folder, regardless of where uvicorn is run.
 load_dotenv(BASE_DIR / ".env")
-
 
 app = FastAPI()
 app.add_middleware(
@@ -170,7 +170,13 @@ def analyze_ticket_async(ticket: Ticket):
 def get_tickets(db: Session = Depends(get_db)):
     """Fetches every single support ticket record resting inside the cloud database."""
     tickets = db.query(models.Ticket).order_by(models.Ticket.created_at.desc()).all()
-    return tickets
+    result = []
+    for t in tickets:
+        t_dict = {c.name: getattr(t, c.name) for c in t.__table__.columns}
+        t_dict["comment_count"] = db.query(models.TicketComment).filter(models.TicketComment.ticket_id == t.id).count()
+        result.append(t_dict)
+    return result
+
 
 @app.post("/tickets")
 def ingest_customer_ticket(ticket_data: TicketCreate, db: Session = Depends(get_db)):
@@ -212,9 +218,6 @@ def ingest_customer_ticket(ticket_data: TicketCreate, db: Session = Depends(get_
     db.commit()
     db.refresh(new_ticket)
 
-    # 5. (Your existing background loops go here...)
-    # celery_worker.process_ai_triage.delay(new_ticket.id)
-
     return {"status": "Success", "message": "Ticket processed and counter updated.", "ticket_id": new_ticket.id}
 
 @app.get("/tickets/user/{user_email}")
@@ -227,7 +230,13 @@ def get_user_tickets(user_email: str, db: Session = Depends(get_db)):
         .order_by(models.Ticket.created_at.desc())
         .all()
     )
-    return tickets
+    result = []
+    for t in tickets:
+        t_dict = {c.name: getattr(t, c.name) for c in t.__table__.columns}
+        t_dict["comment_count"] = db.query(models.TicketComment).filter(models.TicketComment.ticket_id == t.id).count()
+        result.append(t_dict)
+    return result
+
 
 
 @app.get("/tickets/high")
@@ -282,3 +291,45 @@ def override_ticket_action(ticket_id: int, payload: OverrideRequest, db: Session
         "message": f"Autonomous action for ticket #{ticket_id} has been permanently overridden.",
         "updated_action": db_ticket.action_taken
     }
+
+
+@app.get("/tickets/{ticket_id}/comments")
+def get_comments(
+    ticket_id: int,
+    db: Session = Depends(get_db)
+):
+
+    comments = (
+        db.query(models.TicketComment)
+        .filter(
+            models.TicketComment.ticket_id == ticket_id
+        )
+        .order_by(
+            models.TicketComment.created_at.asc()
+        )
+        .all()
+    )
+
+    return comments
+
+
+@app.post("/tickets/{ticket_id}/comments")
+def create_comment(
+    ticket_id: int,
+    payload: dict,
+    db: Session = Depends(get_db)
+):
+
+    comment = models.TicketComment(
+        ticket_id=ticket_id,
+        sender=payload.get("sender"),
+        message=payload.get("message")
+    )
+
+    db.add(comment)
+
+    db.commit()
+
+    db.refresh(comment)
+
+    return comment
